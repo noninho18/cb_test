@@ -1,0 +1,65 @@
+version: '3.8'
+services:
+  hadoop-namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+    container_name: hadoop-namenode
+    environment:
+      - CLUSTER_NAME=test
+      - HADOOP_HOME=/opt/hadoop-2.7.4
+      - HADOOP_CONF_DIR=/etc/hadoop
+      - CORE_CONF_fs_defaultFS=hdfs://172.20.0.2:8020
+    ports:
+      - "50070:50070"  # Web UI port for Hadoop NameNode
+      - "8020:8020"    # HDFS port
+      - "50090:50090"  # Web UI port for SecondaryNameNode
+    volumes:
+      - namenode:/hadoop/dfs/name
+      - ./custom-start-dfs.sh:/opt/hadoop-2.7.4/sbin/custom-start-dfs.sh
+    command: ["/bin/bash", "-c", "/opt/hadoop-2.7.4/sbin/custom-start-dfs.sh"]
+    networks:
+      - hadoop-net
+
+  hadoop-datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    container_name: hadoop-datanode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://hadoop-namenode:8020
+      - CLUSTER_NAME=test
+      - HADOOP_HOME=/opt/hadoop-2.7.4
+      - HADOOP_CONF_DIR=/etc/hadoop
+      - CORE_CONF_fs_defaultFS=hdfs://172.20.0.2:8020
+    depends_on:
+      - hadoop-namenode
+    ports:
+      - "50075:50075"  # Web UI port for Hadoop DataNode
+    volumes:
+      - datanode:/hadoop/dfs/data
+      - ./custom-start-dfs.sh:/opt/hadoop-2.7.4/sbin/custom-start-dfs.sh
+    command: ["/bin/bash", "-c", "/opt/hadoop-2.7.4/sbin/custom-start-dfs.sh"]
+    networks:
+      - hadoop-net
+
+  spark:
+    image: bitnami/spark:latest
+    container_name: spark
+    user: root
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - HADOOP_CONF_DIR=/etc/hadoop
+    ports:
+      - "8080:8080"  # Web UI port for Spark master
+    depends_on:
+      - hadoop-namenode
+      - hadoop-datanode
+    networks:
+      - hadoop-net
+
+volumes:
+  namenode:
+  datanode:
+
+networks:
+  hadoop-net:
+    external:
+      name: cb_test_hadoop-net
